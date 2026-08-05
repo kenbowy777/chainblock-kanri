@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>チェーンブロック 貸出・在庫・点検管理</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CB管理">
+<meta name="theme-color" content="#2b2f38">
+<style>
+  :root{
+    --bg: #eef0f3;
+    --panel: #ffffff;
+    --ink: #1c2027;
+    --ink-soft: #5a616e;
+    --line: #d7dbe2;
+    --header: #2b2f38;
+    --header-ink: #e8eaee;
+    --navy: #1f3a5f;
+    --navy-hov: #274a75;
+    --gold: #b8901f;
+    --gold-bg: #f7ecd0;
+    --green: #2e7d32;
+    --green-bg: #e3f2e4;
+    --red: #b3261e;
+    --red-bg: #fbe6e4;
+    --gray-btn: #6b7280;
+    --sans: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", system-ui, -apple-system, sans-serif;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--sans); -webkit-font-smoothing:antialiased;
+    font-size:14px;
+  }
+  button, input, select, textarea{ font-family:inherit; font-size:14px; }
+  .app{ min-height:100%; display:flex; flex-direction:column; }
+
+  header.topbar{
+    background:var(--header); color:var(--header-ink);
+    padding:14px 20px; display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:10px; border-bottom:3px solid #1a1d24;
+  }
+  header.topbar h1{ font-size:17px; margin:0; font-weight:700; letter-spacing:.02em; }
+  header.topbar .sub{ font-size:12px; opacity:.75; margin-top:2px; }
+  header.topbar .actions{ display:flex; gap:8px; flex-wrap:wrap; }
+
+  main{ flex:1; padding:18px; max-width:1400px; margin:0 auto; width:100%; }
+
+  .cards{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:18px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .card .num{ font-size:26px; font-weight:700; line-height:1.1; }
+  .card .label{ font-size:12px; color:var(--ink-soft); margin-top:4px; }
+  .card.warn .num{ color:var(--gold); }
+  .card.danger .num{ color:var(--red); }
+  .card.ok .num{ color:var(--green); }
+
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:18px; }
+  .panel h2{ font-size:15px; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+
+  .toolbar{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+  .toolbar input[type=text]{ padding:7px 10px; border:1px solid var(--line); border-radius:6px; min-width:200px; }
+  .toolbar select{ padding:7px 10px; border:1px solid var(--line); border-radius:6px; }
+
+  .btn{ padding:7px 14px; border-radius:6px; border:1px solid transparent; cursor:pointer; font-weight:600; white-space:nowrap; }
+  .btn-primary{ background:var(--navy); color:#fff; }
+  .btn-primary:hover{ background:var(--navy-hov); }
+  .btn-outline{ background:#fff; border:1px solid var(--line); color:var(--ink); }
+  .btn-outline:hover{ background:#f3f4f6; }
+  .btn-gray{ background:var(--gray-btn); color:#fff; }
+  .btn-danger{ background:var(--red); color:#fff; }
+  .btn-sm{ padding:4px 9px; font-size:12px; border-radius:5px; }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  thead th{ text-align:left; padding:8px 8px; border-bottom:2px solid var(--line); color:var(--ink-soft); font-weight:600; white-space:nowrap; }
+  tbody td{ padding:8px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tbody tr:hover{ background:#f7f8fa; }
+  .tablewrap{ overflow-x:auto; }
+
+  .badge{ display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:700; white-space:nowrap; }
+  .b-stock{ background:var(--green-bg); color:var(--green); }
+  .b-rented{ background:#e3ecf7; color:var(--navy); }
+  .b-inspecting{ background:var(--gold-bg); color:var(--gold); }
+  .b-retired{ background:#e5e7eb; color:#4b5563; }
+  .b-valid{ background:var(--green-bg); color:var(--green); }
+  .b-expiring{ background:var(--gold-bg); color:var(--gold); }
+  .b-expired{ background:var(--red-bg); color:var(--red); }
+  .b-none{ background:#e5e7eb; color:#4b5563; }
+
+  .row-actions{ display:flex; gap:6px; flex-wrap:wrap; }
+
+  .empty{ padding:30px; text-align:center; color:var(--ink-soft); }
+
+  /* Modal */
+  .overlay{ position:fixed; inset:0; background:rgba(20,23,28,.5); display:none; align-items:flex-start; justify-content:center; padding:30px 14px; overflow:auto; z-index:50; }
+  .overlay.open{ display:flex; }
+  .modal{ background:#fff; border-radius:10px; width:100%; max-width:560px; padding:20px; }
+  .modal h3{ margin:0 0 14px; font-size:16px; }
+  .field{ margin-bottom:12px; }
+  .field label{ display:block; font-size:12px; color:var(--ink-soft); margin-bottom:4px; font-weight:600; }
+  .field input, .field select, .field textarea{ width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:6px; }
+  .field textarea{ resize:vertical; min-height:60px; }
+  .field .hint{ font-size:11px; color:var(--ink-soft); margin-top:4px; }
+  .assetno{ font-weight:700; letter-spacing:.02em; }
+  .field-row{ display:flex; gap:10px; }
+  .field-row .field{ flex:1; }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+  .notice{ padding:10px 12px; border-radius:6px; font-size:13px; margin-bottom:12px; }
+  .notice.danger{ background:var(--red-bg); color:var(--red); }
+  .notice.warn{ background:var(--gold-bg); color:var(--gold); }
+  .notice.info{ background:#e3ecf7; color:var(--navy); }
+
+  .hist-section{ margin-top:14px; }
+  .hist-section h4{ font-size:13px; margin:0 0 6px; color:var(--ink-soft); }
+
+  footer.credit{ text-align:center; padding:16px; font-size:11px; color:var(--ink-soft); }
+
+  @media (max-width:720px){
+    .field-row{ flex-direction:column; }
+    header.topbar h1{ font-size:15px; }
+  }
+
+  @media print{
+    header.topbar, .toolbar, .row-actions, .cards, .btn{ display:none !important; }
+    .panel{ border:none; box-shadow:none; }
+    body{ background:#fff; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div>
+      <h1>チェーンブロック 貸出・在庫・点検管理</h1>
+      <div class="sub">在庫登録 / 貸出管理 / 1年点検・点検ステッカー管理</div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-outline btn-sm" id="btnExport">JSONエクスポート</button>
+      <label class="btn btn-outline btn-sm" style="margin:0;">
+        JSONインポート
+        <input type="file" id="fileImport" accept="application/json" style="display:none;">
+      </label>
+      <button class="btn btn-outline btn-sm" id="btnPrint">印刷用表示</button>
+      <button class="btn btn-primary" id="btnNew">＋ 新規在庫登録</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="cards" id="cards"></div>
+
+    <div class="panel">
+      <h2>能力別 在庫状況</h2>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>定格荷重</th><th>総数</th><th>貸出可能</th><th>貸出中</th><th>点検待ち/修理中</th><th>点検切れ/未点検</th>
+            </tr>
+          </thead>
+          <tbody id="capBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>在庫一覧</h2>
+      <div class="toolbar">
+        <input type="text" id="searchBox" placeholder="管理番号・機種・保管場所・貸出先で検索">
+        <select id="filterMaker">
+          <option value="">メーカー: すべて</option>
+        </select>
+        <select id="filterCapacity">
+          <option value="">定格荷重: すべて</option>
+          <option value="0.5">0.5t</option>
+          <option value="1">1t</option>
+          <option value="1.5">1.5t</option>
+          <option value="2">2t</option>
+          <option value="3">3t</option>
+        </select>
+        <select id="filterStatus">
+          <option value="">ステータス: すべて</option>
+          <option value="stock">在庫中</option>
+          <option value="rented">貸出中</option>
+          <option value="inspecting">点検待ち/点検中</option>
+          <option value="retired">廃棄</option>
+        </select>
+        <select id="filterInspection">
+          <option value="">点検状態: すべて</option>
+          <option value="valid">有効</option>
+          <option value="expiring">期限間近(30日以内)</option>
+          <option value="expired">期限切れ</option>
+          <option value="none">未点検</option>
+        </select>
+      </div>
+      <div class="tablewrap">
+        <table id="invTable">
+          <thead>
+            <tr>
+              <th>管理番号</th>
+              <th>メーカー</th>
+              <th>機種</th>
+              <th>定格荷重</th>
+              <th>保管場所 / 貸出先</th>
+              <th>ステータス</th>
+              <th>最終点検日</th>
+              <th>点検有効期限</th>
+              <th>ステッカーNo.</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="invBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="invEmpty" style="display:none;">登録された在庫がありません。「新規在庫登録」から追加してください。</div>
+    </div>
+  </main>
+
+  <footer class="credit">データはこの端末のブラウザ内（localStorage）に保存されます。バックアップはJSONエクスポートをご利用ください。</footer>
+</div>
+
+<!-- 新規登録/編集モーダル -->
+<div class="overlay" id="overlayItem">
+  <div class="modal">
+    <h3 id="itemModalTitle">新規在庫登録</h3>
+    <div class="field">
+      <label>管理番号 *（八＋数字6桁）</label>
+      <input type="text" id="fAssetNo" placeholder="例: 八123456" autocomplete="off">
+      <div class="hint">数字のみ入力すると先頭に「八」を自動で付与します。管理番号は重複登録できません。</div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>メーカー *</label>
+        <select id="fMaker">
+          <option value="">選択してください</option>
+          <option value="キトー">キトー</option>
+          <option value="象印">象印</option>
+          <option value="__other__">その他（入力）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>定格荷重 *</label>
+        <select id="fCapacity">
+          <option value="">選択してください</option>
+          <option value="0.5">0.5t</option>
+          <option value="1">1t</option>
+          <option value="1.5">1.5t</option>
+          <option value="2">2t</option>
+          <option value="3">3t</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" id="makerOtherField" style="display:none;">
+      <label>メーカー名（その他）*</label><input type="text" id="fMakerOther" placeholder="例: 〇〇工業">
+    </div>
+    <div class="field">
+      <label>機種 *</label>
+      <input type="text" id="fModel" list="modelList" placeholder="例: CB形 / C21形" autocomplete="off">
+      <datalist id="modelList"></datalist>
+      <div class="hint">過去に登録した機種名が候補として表示されます。新しい機種はそのまま入力してください。</div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>保管場所</label><input type="text" id="fLocation" placeholder="例: 資材倉庫A"></div>
+      <div class="field"><label>取得日</label><input type="date" id="fAcquired"></div>
+    </div>
+    <div class="field"><label>備考</label><textarea id="fNotes"></textarea></div>
+    <div class="notice info">新規登録した機器は初回点検を実施するまで貸し出しできません。登録後に「点検記録」から初回点検を登録してください。</div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" data-close>キャンセル</button>
+      <button class="btn btn-primary" id="btnSaveItem">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 貸出モーダル -->
+<div class="overlay" id="overlayLend">
+  <div class="modal">
+    <h3>貸し出し登録</h3>
+    <div id="lendNotice"></div>
+    <div class="field"><label>対象機器</label><input type="text" id="lendItemLabel" disabled></div>
+    <div class="field-row">
+      <div class="field"><label>貸出日 *</label><input type="date" id="fLentDate"></div>
+      <div class="field"><label>返却予定日</label><input type="date" id="fDueDate"></div>
+    </div>
+    <div class="field"><label>貸出先(現場名/会社名) *</label><input type="text" id="fBorrower"></div>
+    <div class="field"><label>社内担当者</label><input type="text" id="fRequester"></div>
+    <div class="field"><label>備考</label><textarea id="fLendNotes"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" data-close>キャンセル</button>
+      <button class="btn btn-primary" id="btnConfirmLend">貸し出す</button>
+    </div>
+  </div>
+</div>
+
+<!-- 返却モーダル -->
+<div class="overlay" id="overlayReturn">
+  <div class="modal">
+    <h3>返却登録</h3>
+    <div class="field"><label>対象機器</label><input type="text" id="retItemLabel" disabled></div>
+    <div class="field"><label>返却日 *</label><input type="date" id="fReturnedDate"></div>
+    <div class="field"><label>返却時メモ（破損・不具合等）</label><textarea id="fReturnNotes"></textarea></div>
+    <div class="notice warn">返却後は分解点検を実施し、点検ステッカーを貼付のうえ保管してください。返却登録後、続けて点検記録の入力画面が開きます。</div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" data-close>キャンセル</button>
+      <button class="btn btn-primary" id="btnConfirmReturn">返却する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 点検記録モーダル -->
+<div class="overlay" id="overlayInspect">
+  <div class="modal">
+    <h3 id="inspectTitle">点検記録</h3>
+    <div class="field"><label>対象機器</label><input type="text" id="insItemLabel" disabled></div>
+    <div class="field-row">
+      <div class="field"><label>点検日 *</label><input type="date" id="fInsDate"></div>
+      <div class="field">
+        <label>点検種別</label>
+        <select id="fInsType">
+          <option value="periodic">定期点検(1年点検)</option>
+          <option value="post-return">返却後点検(分解点検)</option>
+          <option value="other">その他点検</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>点検者</label><input type="text" id="fInspector"></div>
+      <div class="field">
+        <label>点検結果 *</label>
+        <select id="fInsResult">
+          <option value="pass">合格（点検ステッカー貼付・保管可）</option>
+          <option value="repair">要修理（貸出不可・修理後再点検）</option>
+          <option value="fail">不合格（廃棄検討）</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>点検ステッカー番号</label><input type="text" id="fStickerNo" placeholder="例: STK-2026-001"></div>
+    <div class="field"><label>備考</label><textarea id="fInsNotes"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" data-close>キャンセル</button>
+      <button class="btn btn-primary" id="btnConfirmInspect">記録する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 履歴/詳細モーダル -->
+<div class="overlay" id="overlayDetail">
+  <div class="modal" style="max-width:720px;">
+    <h3 id="detailTitle">機器詳細</h3>
+    <div id="detailBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" data-close>閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const STORAGE_KEY = "chainblock_inventory_v1";
+  const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+  const EXPIRING_SOON_DAYS = 30;
+
+  // 定格荷重の選択肢。値は数値文字列で保持し、表示はラベルを使う
+  const CAPACITIES = ["0.5", "1", "1.5", "2", "3"];
+  const MAKERS = ["キトー", "象印"];
+  // 管理番号: 漢字の「八」＋数字6桁程度
+  const ASSET_RE = /^八\d{4,8}$/;
+
+  function capLabel(v){ return v ? v + "t" : "-"; }
+
+  // 旧フォーマット（品名・自由入力の能力/メーカー）から現行フォーマットへ寄せる
+  function migrateItem(item){
+    if(item.model == null){
+      item.model = item.name || "";
+    }
+    if(typeof item.capacity === "string" && item.capacity !== ""){
+      const num = item.capacity.replace(/[tTトン ]/g, "");
+      item.capacity = CAPACITIES.includes(num) ? num : "";
+    }
+    if(item.capacity == null) item.capacity = "";
+    if(item.maker == null) item.maker = "";
+    delete item.name;
+    return item;
+  }
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return { items: [], rentals: [], inspections: [] };
+      const parsed = JSON.parse(raw);
+      return {
+        items: (parsed.items || []).map(migrateItem),
+        rentals: parsed.rentals || [],
+        inspections: parsed.inspections || []
+      };
+    }catch(e){
+      console.error("state load failed", e);
+      return { items: [], rentals: [], inspections: [] };
+    }
+  }
+  function saveState(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  let state = loadState();
+
+  function uid(prefix){
+    return prefix + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+  }
+  function todayStr(){
+    const d = new Date();
+    return d.toISOString().slice(0,10);
+  }
+  function addYears(dateStr, n){
+    const d = new Date(dateStr + "T00:00:00");
+    d.setFullYear(d.getFullYear() + n);
+    return d.toISOString().slice(0,10);
+  }
+  function daysBetween(fromStr, toStr){
+    const a = new Date(fromStr + "T00:00:00");
+    const b = new Date(toStr + "T00:00:00");
+    return Math.round((b - a) / 86400000);
+  }
+  function fmtDate(s){
+    if(!s) return "-";
+    return s.replaceAll("-", "/");
+  }
+  // 全角数字を半角に直し、数字のみの入力には「八」を補って管理番号を組み立てる
+  function normalizeAssetNo(raw){
+    let s = String(raw || "").trim()
+      .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+      .replace(/\s+/g, "");
+    // 「八-123456」のような区切りは落とすが、想定外の表記は打った通りに残す
+    const stripped = s.replace(/[\-‐－]/g, "");
+    if(/^八?\d+$/.test(stripped)) s = stripped;
+    if(/^\d+$/.test(s)) s = "八" + s;
+    return s;
+  }
+  // 「八123456」を「123456」でも検索できるようにする
+  function assetNoDigits(assetNo){
+    return String(assetNo || "").replace(/^八/, "");
+  }
+  function itemLabel(item){
+    return `${item.assetNo}（${item.maker || "-"} ${item.model || "-"} ${capLabel(item.capacity)}）`;
+  }
+
+  function escapeHtml(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  function getInspectionStatus(item, today){
+    today = today || todayStr();
+    if(!item.lastInspectionDate || !item.inspectionExpiry){
+      return { key: "none", label: "未点検" };
+    }
+    const days = daysBetween(today, item.inspectionExpiry);
+    if(days < 0) return { key: "expired", label: "期限切れ", days };
+    if(days <= EXPIRING_SOON_DAYS) return { key: "expiring", label: `期限間近(${days}日)`, days };
+    return { key: "valid", label: "有効", days };
+  }
+
+  function canLend(item){
+    if(item.status !== "stock") return { ok:false, reason: "現在「在庫中」ではないため貸し出しできません。" };
+    const insp = getInspectionStatus(item);
+    if(insp.key === "none") return { ok:false, reason: "未点検のため貸し出しできません。先に点検を記録してください。" };
+    if(insp.key === "expired") return { ok:false, reason: "点検ステッカーの有効期限（点検後1年）が切れているため貸し出しできません。先に点検を記録してください。" };
+    return { ok:true };
+  }
+
+  const statusLabel = { stock:"在庫中", rented:"貸出中", inspecting:"点検待ち/点検中", retired:"廃棄" };
+  const statusBadgeClass = { stock:"b-stock", rented:"b-rented", inspecting:"b-inspecting", retired:"b-retired" };
+  const inspBadgeClass = { valid:"b-valid", expiring:"b-expiring", expired:"b-expired", none:"b-none" };
+
+  // ---------- rendering ----------
+  function renderCards(){
+    const items = state.items.filter(i => i.status !== "retired");
+    const total = items.length;
+    const rented = items.filter(i => i.status === "rented").length;
+    const today = todayStr();
+    let expired = 0, expiring = 0;
+    items.forEach(i => {
+      const s = getInspectionStatus(i, today).key;
+      if(s === "expired" || s === "none") expired++;
+      else if(s === "expiring") expiring++;
+    });
+    const cards = [
+      { label:"登録在庫数", num:total, cls:"" },
+      { label:"貸出中", num:rented, cls:"" },
+      { label:"点検期限間近", num:expiring, cls:"warn" },
+      { label:"点検切れ/未点検", num:expired, cls:"danger" },
+    ];
+    document.getElementById("cards").innerHTML = cards.map(c =>
+      `<div class="card ${c.cls}"><div class="num">${c.num}</div><div class="label">${c.label}</div></div>`
+    ).join("");
+  }
+
+  function currentRental(item){
+    return state.rentals.find(r => r.id === item.currentRentalId && r.status === "active");
+  }
+
+  // 現場から「1tは何台出せるか」を即答できるよう、能力別に台数を集計する
+  function renderCapacityTable(){
+    const live = state.items.filter(i => i.status !== "retired");
+    const today = todayStr();
+    const groups = CAPACITIES.slice();
+    live.forEach(i => { if(i.capacity && !groups.includes(i.capacity)) groups.push(i.capacity); });
+    if(live.some(i => !i.capacity)) groups.push("");
+
+    const rows = groups.map(cap => {
+      const set = live.filter(i => i.capacity === cap);
+      if(!set.length && cap === "") return "";
+      const lendable = set.filter(i => canLend(i).ok).length;
+      const rented = set.filter(i => i.status === "rented").length;
+      const inspecting = set.filter(i => i.status === "inspecting").length;
+      const overdue = set.filter(i => {
+        const k = getInspectionStatus(i, today).key;
+        return k === "expired" || k === "none";
+      }).length;
+      return `<tr>
+        <td><b>${cap ? capLabel(cap) : "未設定"}</b></td>
+        <td>${set.length}</td>
+        <td style="color:var(--green);font-weight:700;">${lendable}</td>
+        <td>${rented}</td>
+        <td>${inspecting}</td>
+        <td style="color:${overdue ? "var(--red)" : "inherit"};">${overdue}</td>
+      </tr>`;
+    }).join("");
+
+    document.getElementById("capBody").innerHTML = rows ||
+      `<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);">在庫がありません</td></tr>`;
+  }
+
+  // メーカー絞り込みは登録済みの値から組み立てる（その他メーカーも拾えるように）
+  function renderMakerFilter(){
+    const sel = document.getElementById("filterMaker");
+    const current = sel.value;
+    const makers = MAKERS.slice();
+    state.items.forEach(i => { if(i.maker && !makers.includes(i.maker)) makers.push(i.maker); });
+    sel.innerHTML = `<option value="">メーカー: すべて</option>` +
+      makers.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
+    sel.value = makers.includes(current) ? current : "";
+  }
+
+  // 機種は自由入力だが、登録済みの機種名を入力候補として出す
+  function renderModelDatalist(maker){
+    const models = [];
+    state.items.forEach(i => {
+      if(!i.model) return;
+      if(maker && i.maker !== maker) return;
+      if(!models.includes(i.model)) models.push(i.model);
+    });
+    models.sort();
+    document.getElementById("modelList").innerHTML =
+      models.map(m => `<option value="${escapeHtml(m)}"></option>`).join("");
+  }
+
+  function renderTable(){
+    const search = document.getElementById("searchBox").value.trim().toLowerCase();
+    const fStatus = document.getElementById("filterStatus").value;
+    const fInsp = document.getElementById("filterInspection").value;
+    const fMaker = document.getElementById("filterMaker").value;
+    const fCap = document.getElementById("filterCapacity").value;
+    const today = todayStr();
+
+    let items = state.items.slice().sort((a,b) => (a.assetNo||"").localeCompare(b.assetNo||""));
+
+    items = items.filter(i => {
+      if(fStatus && i.status !== fStatus) return false;
+      if(fMaker && i.maker !== fMaker) return false;
+      if(fCap && i.capacity !== fCap) return false;
+      const insp = getInspectionStatus(i, today).key;
+      if(fInsp && insp !== fInsp) return false;
+      if(search){
+        const rental = currentRental(i);
+        const hay = [
+          i.assetNo, assetNoDigits(i.assetNo), i.maker, i.model,
+          capLabel(i.capacity), i.location, rental ? rental.borrower : ""
+        ].join(" ").toLowerCase();
+        if(!hay.includes(search)) return false;
+      }
+      return true;
+    });
+
+    const tbody = document.getElementById("invBody");
+    document.getElementById("invEmpty").style.display = items.length ? "none" : "block";
+
+    tbody.innerHTML = items.map(item => {
+      const insp = getInspectionStatus(item, today);
+      const rental = currentRental(item);
+      const locOrBorrower = item.status === "rented" && rental
+        ? `貸出先: ${escapeHtml(rental.borrower)}`
+        : escapeHtml(item.location || "-");
+
+      const lendOk = canLend(item);
+      let actions = `<button class="btn btn-outline btn-sm" data-act="detail" data-id="${item.id}">詳細</button>`;
+      actions += `<button class="btn btn-outline btn-sm" data-act="edit" data-id="${item.id}">編集</button>`;
+      if(item.status === "rented"){
+        actions += `<button class="btn btn-primary btn-sm" data-act="return" data-id="${item.id}">返却</button>`;
+      } else if(item.status !== "retired"){
+        actions += `<button class="btn btn-primary btn-sm" data-act="lend" data-id="${item.id}" ${lendOk.ok ? "" : "disabled"}>貸出</button>`;
+      }
+      if(item.status !== "retired"){
+        actions += `<button class="btn btn-outline btn-sm" data-act="inspect" data-id="${item.id}">点検記録</button>`;
+        actions += `<button class="btn btn-gray btn-sm" data-act="retire" data-id="${item.id}">廃棄</button>`;
+      } else {
+        actions += `<button class="btn btn-outline btn-sm" data-act="restore" data-id="${item.id}">復帰</button>`;
+      }
+
+      return `<tr>
+        <td class="assetno">${escapeHtml(item.assetNo)}</td>
+        <td>${escapeHtml(item.maker || "-")}</td>
+        <td>${escapeHtml(item.model || "-")}</td>
+        <td>${capLabel(item.capacity)}</td>
+        <td>${locOrBorrower}</td>
+        <td><span class="badge ${statusBadgeClass[item.status]}">${statusLabel[item.status]}</span></td>
+        <td>${fmtDate(item.lastInspectionDate)}</td>
+        <td>${fmtDate(item.inspectionExpiry)} <span class="badge ${inspBadgeClass[insp.key]}">${insp.label}</span></td>
+        <td>${escapeHtml(item.stickerNo || "-")}</td>
+        <td><div class="row-actions">${actions}</div></td>
+      </tr>`;
+    }).join("");
+  }
+
+  function renderAll(){
+    renderCards();
+    renderCapacityTable();
+    renderMakerFilter();
+    renderTable();
+  }
+
+  // ---------- modal helpers ----------
+  function openOverlay(id){ document.getElementById(id).classList.add("open"); }
+  function closeOverlay(id){ document.getElementById(id).classList.remove("open"); }
+  document.querySelectorAll("[data-close]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      btn.closest(".overlay").classList.remove("open");
+    });
+  });
+  document.querySelectorAll(".overlay").forEach(ov => {
+    ov.addEventListener("click", e => { if(e.target === ov) ov.classList.remove("open"); });
+  });
+
+  // ---------- item create/edit ----------
+  let editingItemId = null;
+
+  const makerSelect = document.getElementById("fMaker");
+  const makerOtherField = document.getElementById("makerOtherField");
+  function syncMakerOther(){
+    const other = makerSelect.value === "__other__";
+    makerOtherField.style.display = other ? "block" : "none";
+    renderModelDatalist(other ? "" : makerSelect.value);
+  }
+  makerSelect.addEventListener("change", syncMakerOther);
+
+  // フォームに入っているメーカー名（その他を含む）を取り出す
+  function readMaker(){
+    return makerSelect.value === "__other__"
+      ? document.getElementById("fMakerOther").value.trim()
+      : makerSelect.value;
+  }
+  function setMaker(maker){
+    if(maker && !MAKERS.includes(maker)){
+      makerSelect.value = "__other__";
+      document.getElementById("fMakerOther").value = maker;
+    } else {
+      makerSelect.value = maker || "";
+      document.getElementById("fMakerOther").value = "";
+    }
+    syncMakerOther();
+  }
+
+  document.getElementById("btnNew").addEventListener("click", () => {
+    editingItemId = null;
+    document.getElementById("itemModalTitle").textContent = "新規在庫登録";
+    ["fAssetNo","fMakerOther","fModel","fLocation","fAcquired","fNotes"].forEach(id => document.getElementById(id).value = "");
+    document.getElementById("fCapacity").value = "";
+    setMaker("");
+    openOverlay("overlayItem");
+    document.getElementById("fAssetNo").focus();
+  });
+
+  function openEditItem(item){
+    editingItemId = item.id;
+    document.getElementById("itemModalTitle").textContent = "在庫情報編集: " + item.assetNo;
+    document.getElementById("fAssetNo").value = item.assetNo || "";
+    document.getElementById("fCapacity").value = item.capacity || "";
+    document.getElementById("fModel").value = item.model || "";
+    setMaker(item.maker || "");
+    document.getElementById("fLocation").value = item.location || "";
+    document.getElementById("fAcquired").value = item.acquiredDate || "";
+    document.getElementById("fNotes").value = item.notes || "";
+    openOverlay("overlayItem");
+  }
+
+  document.getElementById("btnSaveItem").addEventListener("click", () => {
+    const assetNo = normalizeAssetNo(document.getElementById("fAssetNo").value);
+    const maker = readMaker();
+    const model = document.getElementById("fModel").value.trim();
+    const capacity = document.getElementById("fCapacity").value;
+
+    if(!assetNo || !maker || !model || !capacity){
+      alert("管理番号・メーカー・機種・定格荷重は必須です。");
+      return;
+    }
+    if(!ASSET_RE.test(assetNo) &&
+       !confirm(`管理番号「${assetNo}」は想定の形式（八＋数字6桁）と異なります。このまま登録しますか？`)){
+      return;
+    }
+    // 管理番号ですべての管理を行うため、重複は許可しない
+    const dup = state.items.find(i => i.assetNo === assetNo && i.id !== editingItemId);
+    if(dup){
+      alert(`管理番号「${assetNo}」は既に登録されています。管理番号は重複登録できません。`);
+      return;
+    }
+
+    const common = {
+      assetNo, maker, model, capacity,
+      location: document.getElementById("fLocation").value.trim(),
+      acquiredDate: document.getElementById("fAcquired").value,
+      notes: document.getElementById("fNotes").value.trim(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if(editingItemId){
+      Object.assign(state.items.find(i => i.id === editingItemId), common);
+    } else {
+      state.items.push(Object.assign({
+        id: uid("item"),
+        status: "stock",
+        lastInspectionDate: null,
+        inspectionExpiry: null,
+        stickerNo: null,
+        currentRentalId: null,
+        createdAt: new Date().toISOString()
+      }, common));
+    }
+    saveState();
+    closeOverlay("overlayItem");
+    renderAll();
+  });
+
+  // 数字だけ打った場合に、確定時点で「八」付きの表記に整える
+  document.getElementById("fAssetNo").addEventListener("blur", e => {
+    if(e.target.value.trim()) e.target.value = normalizeAssetNo(e.target.value);
+  });
+
+  // ---------- lending ----------
+  let lendItemId = null;
+  function openLend(item){
+    const check = canLend(item);
+    lendItemId = item.id;
+    document.getElementById("lendItemLabel").value = itemLabel(item);
+    document.getElementById("fLentDate").value = todayStr();
+    document.getElementById("fDueDate").value = "";
+    document.getElementById("fBorrower").value = "";
+    document.getElementById("fRequester").value = "";
+    document.getElementById("fLendNotes").value = "";
+    const notice = document.getElementById("lendNotice");
+    if(!check.ok){
+      notice.innerHTML = `<div class="notice danger">${escapeHtml(check.reason)}</div>`;
+    } else {
+      const insp = getInspectionStatus(item);
+      notice.innerHTML = insp.key === "expiring"
+        ? `<div class="notice warn">点検有効期限が近づいています（${escapeHtml(insp.label)}）。ステッカーを確認のうえ貸し出してください。</div>`
+        : `<div class="notice info">点検ステッカー: 有効（点検日 ${fmtDate(item.lastInspectionDate)} / 期限 ${fmtDate(item.inspectionExpiry)}）</div>`;
+    }
+    document.getElementById("btnConfirmLend").disabled = !check.ok;
+    openOverlay("overlayLend");
+  }
+
+  document.getElementById("btnConfirmLend").addEventListener("click", () => {
+    const item = state.items.find(i => i.id === lendItemId);
+    if(!item) return;
+    const check = canLend(item);
+    if(!check.ok){ alert(check.reason); return; }
+    const borrower = document.getElementById("fBorrower").value.trim();
+    const lentDate = document.getElementById("fLentDate").value;
+    if(!borrower || !lentDate){
+      alert("貸出先と貸出日は必須です。");
+      return;
+    }
+    const rental = {
+      id: uid("rental"),
+      itemId: item.id,
+      borrower,
+      requester: document.getElementById("fRequester").value.trim(),
+      lentDate,
+      dueDate: document.getElementById("fDueDate").value || null,
+      returnedDate: null,
+      returnNotes: "",
+      notes: document.getElementById("fLendNotes").value.trim(),
+      status: "active"
+    };
+    state.rentals.push(rental);
+    item.status = "rented";
+    item.currentRentalId = rental.id;
+    item.updatedAt = new Date().toISOString();
+    saveState();
+    closeOverlay("overlayLend");
+    renderAll();
+  });
+
+  // ---------- return ----------
+  let returnItemId = null;
+  function openReturn(item){
+    returnItemId = item.id;
+    document.getElementById("retItemLabel").value = itemLabel(item);
+    document.getElementById("fReturnedDate").value = todayStr();
+    document.getElementById("fReturnNotes").value = "";
+    openOverlay("overlayReturn");
+  }
+
+  document.getElementById("btnConfirmReturn").addEventListener("click", () => {
+    const item = state.items.find(i => i.id === returnItemId);
+    if(!item) return;
+    const rental = currentRental(item);
+    const returnedDate = document.getElementById("fReturnedDate").value;
+    if(!returnedDate){ alert("返却日は必須です。"); return; }
+    if(rental){
+      rental.status = "returned";
+      rental.returnedDate = returnedDate;
+      rental.returnNotes = document.getElementById("fReturnNotes").value.trim();
+    }
+    item.status = "inspecting";
+    item.currentRentalId = null;
+    item.updatedAt = new Date().toISOString();
+    saveState();
+    closeOverlay("overlayReturn");
+    renderAll();
+    // 返却後は分解点検が必須のため、続けて点検記録画面を開く
+    openInspect(item, "post-return");
+  });
+
+  // ---------- inspection ----------
+  let inspectItemId = null;
+  function openInspect(item, defaultType){
+    inspectItemId = item.id;
+    document.getElementById("inspectTitle").textContent = "点検記録: " + item.assetNo;
+    document.getElementById("insItemLabel").value = itemLabel(item);
+    document.getElementById("fInsDate").value = todayStr();
+    document.getElementById("fInsType").value = defaultType || "periodic";
+    document.getElementById("fInspector").value = "";
+    document.getElementById("fInsResult").value = "pass";
+    document.getElementById("fStickerNo").value = item.stickerNo || "";
+    document.getElementById("fInsNotes").value = "";
+    openOverlay("overlayInspect");
+  }
+
+  document.getElementById("btnConfirmInspect").addEventListener("click", () => {
+    const item = state.items.find(i => i.id === inspectItemId);
+    if(!item) return;
+    const date = document.getElementById("fInsDate").value;
+    if(!date){ alert("点検日は必須です。"); return; }
+    const result = document.getElementById("fInsResult").value;
+    const stickerNo = document.getElementById("fStickerNo").value.trim();
+    const record = {
+      id: uid("insp"),
+      itemId: item.id,
+      date,
+      type: document.getElementById("fInsType").value,
+      inspector: document.getElementById("fInspector").value.trim(),
+      result,
+      stickerNo: result === "pass" ? stickerNo : "",
+      nextDue: result === "pass" ? addYears(date, 1) : null,
+      notes: document.getElementById("fInsNotes").value.trim()
+    };
+    state.inspections.push(record);
+
+    if(result === "pass"){
+      item.lastInspectionDate = date;
+      item.inspectionExpiry = record.nextDue;
+      item.stickerNo = stickerNo;
+      item.status = "stock";
+    } else {
+      // 要修理・不合格の場合は貸出不可のまま「点検中」として保持
+      item.status = "inspecting";
+    }
+    item.updatedAt = new Date().toISOString();
+    saveState();
+    closeOverlay("overlayInspect");
+    renderAll();
+  });
+
+  // ---------- retire / restore ----------
+  function retireItem(item){
+    if(item.status === "rented"){ alert("貸出中の機器は廃棄にできません。先に返却してください。"); return; }
+    if(!confirm(`「${item.assetNo}」を廃棄扱いにしますか？`)) return;
+    item.status = "retired";
+    item.updatedAt = new Date().toISOString();
+    saveState();
+    renderAll();
+  }
+  function restoreItem(item){
+    item.status = "stock";
+    item.updatedAt = new Date().toISOString();
+    saveState();
+    renderAll();
+  }
+
+  // ---------- detail/history ----------
+  function openDetail(item){
+    document.getElementById("detailTitle").textContent = "機器詳細: " + itemLabel(item);
+    const insp = getInspectionStatus(item);
+    const rentals = state.rentals.filter(r => r.itemId === item.id).sort((a,b) => (b.lentDate||"").localeCompare(a.lentDate||""));
+    const inspections = state.inspections.filter(i => i.itemId === item.id).sort((a,b) => (b.date||"").localeCompare(a.date||""));
+
+    const rentalRows = rentals.length ? rentals.map(r => `
+      <tr>
+        <td>${fmtDate(r.lentDate)}</td>
+        <td>${r.returnedDate ? fmtDate(r.returnedDate) : "貸出中"}</td>
+        <td>${escapeHtml(r.borrower)}</td>
+        <td>${escapeHtml(r.requester || "-")}</td>
+      </tr>`).join("") : `<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);">貸出履歴なし</td></tr>`;
+
+    const inspTypeLabel = { periodic:"定期点検", "post-return":"返却後点検", other:"その他" };
+    const inspResultLabel = { pass:"合格", repair:"要修理", fail:"不合格" };
+    const inspRows = inspections.length ? inspections.map(i => `
+      <tr>
+        <td>${fmtDate(i.date)}</td>
+        <td>${inspTypeLabel[i.type] || i.type}</td>
+        <td>${inspResultLabel[i.result] || i.result}</td>
+        <td>${escapeHtml(i.stickerNo || "-")}</td>
+        <td>${escapeHtml(i.inspector || "-")}</td>
+      </tr>`).join("") : `<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);">点検履歴なし</td></tr>`;
+
+    document.getElementById("detailBody").innerHTML = `
+      <div class="notice info" style="background:#f3f4f6;color:var(--ink);">
+        管理番号 <b class="assetno">${escapeHtml(item.assetNo)}</b>
+        メーカー <b>${escapeHtml(item.maker || "-")}</b>
+        機種 <b>${escapeHtml(item.model || "-")}</b>
+        定格荷重 <b>${capLabel(item.capacity)}</b>
+        保管場所 <b>${escapeHtml(item.location || "-")}</b>
+      </div>
+      <div class="notice ${insp.key === 'expired' || insp.key === 'none' ? 'danger' : insp.key === 'expiring' ? 'warn' : 'info'}">
+        現在のステータス: <b>${statusLabel[item.status]}</b>　点検ステッカー: <b>${insp.label}</b>
+        （最終点検日 ${fmtDate(item.lastInspectionDate)} / 有効期限 ${fmtDate(item.inspectionExpiry)} / ステッカーNo. ${escapeHtml(item.stickerNo || "-")}）
+      </div>
+      <div class="hist-section">
+        <h4>貸出履歴</h4>
+        <div class="tablewrap"><table>
+          <thead><tr><th>貸出日</th><th>返却日</th><th>貸出先</th><th>社内担当</th></tr></thead>
+          <tbody>${rentalRows}</tbody>
+        </table></div>
+      </div>
+      <div class="hist-section">
+        <h4>点検履歴</h4>
+        <div class="tablewrap"><table>
+          <thead><tr><th>点検日</th><th>種別</th><th>結果</th><th>ステッカーNo.</th><th>点検者</th></tr></thead>
+          <tbody>${inspRows}</tbody>
+        </table></div>
+      </div>
+    `;
+    openOverlay("overlayDetail");
+  }
+
+  // ---------- table action dispatch ----------
+  document.getElementById("invBody").addEventListener("click", e => {
+    const btn = e.target.closest("button[data-act]");
+    if(!btn) return;
+    const item = state.items.find(i => i.id === btn.dataset.id);
+    if(!item) return;
+    switch(btn.dataset.act){
+      case "detail": openDetail(item); break;
+      case "edit": openEditItem(item); break;
+      case "lend": openLend(item); break;
+      case "return": openReturn(item); break;
+      case "inspect": openInspect(item, "periodic"); break;
+      case "retire": retireItem(item); break;
+      case "restore": restoreItem(item); break;
+    }
+  });
+
+  // ---------- filters ----------
+  ["searchBox","filterStatus","filterInspection","filterMaker","filterCapacity"].forEach(id => {
+    document.getElementById(id).addEventListener("input", renderTable);
+    document.getElementById(id).addEventListener("change", renderTable);
+  });
+
+  // ---------- export / import ----------
+  document.getElementById("btnExport").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `chainblock_inventory_${todayStr()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+  document.getElementById("fileImport").addEventListener("change", e => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const data = JSON.parse(reader.result);
+        if(!confirm("現在のデータを上書きしてインポートしますか？")) return;
+        state = {
+          items: data.items || [],
+          rentals: data.rentals || [],
+          inspections: data.inspections || []
+        };
+        saveState();
+        renderAll();
+      }catch(err){
+        alert("JSONの読み込みに失敗しました。");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  });
+
+  document.getElementById("btnPrint").addEventListener("click", () => window.print());
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
